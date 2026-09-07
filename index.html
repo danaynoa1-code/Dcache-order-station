@@ -423,10 +423,17 @@ function render(){
   const alertBox=document.getElementById("newAlert");
   if(newOrders.length){
     alertBox.classList.add("show");
+    alertBox.classList.add("show");
+    alertBox.classList.add("show");
+    if(soundEnabled && !window.orderAlarmTimer){
+  beep(); window.orderAlarmTimer=setInterval(beep,4000);
+}
     document.getElementById("alertText").innerText=
       newOrders.length+" order(s) need to be accepted.";
-  }else{
-    alertBox.classList.remove("show");
+  }else{alertBox.classList.remove("show");
+   if(window.orderAlarmTimer){
+  clearInterval(window.orderAlarmTimer); window.orderAlarmTimer=null;
+} alertBox.classList.remove("show");
   }
 
   document.getElementById("activeCount").innerText=
