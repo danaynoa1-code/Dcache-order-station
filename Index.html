@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D'Cache Order Station</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#f4f4f4;
+  color:#222;
+}
+header{
+  background:#111;
+  color:white;
+  padding:18px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+header h1{margin:0;font-size:24px}
+button{
+  border:0;
+  border-radius:8px;
+  padding:12px 18px;
+  font-size:16px;
+  font-weight:bold;
+  cursor:pointer;
+}
+.orange{background:#e66b22;color:white}
+.green{background:#198754;color:white}
+.blue{background:#1769aa;color:white}
+.gray{background:#666;color:white}
+.red{background:#b42318;color:white}
+
+.toolbar{
+  padding:15px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  background:white;
+  border-bottom:1px solid #ddd;
+}
+
+.alert{
+  display:none;
+  margin:15px;
+  padding:18px;
+  border:3px solid #d92d20;
+  background:#fff0ee;
+  color:#b42318;
+  border-radius:10px;
+}
+.alert.show{display:block}
+.alert h2{margin:0 0 6px}
+
+.summary{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+  padding:15px;
+}
+.summary div{
+  background:white;
+  padding:15px;
+  border-radius:10px;
+  box-shadow:0 1px 4px #ccc;
+}
+.summary strong{
+  display:block;
+  font-size:28px;
+  margin-top:5px;
+}
+
+.tabs{
+  display:flex;
+  overflow-x:auto;
+  gap:8px;
+  padding:10px 15px;
+  background:white;
+}
+.tabs button{
+  white-space:nowrap;
+  background:#eee;
+  color:#222;
+}
+.tabs button.active{
+  background:#111;
+  color:white;
+}
+
+#orders{
+  padding:15px;
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:14px;
+}
+
+.card{
+  background:white;
+  border-radius:12px;
+  padding:18px;
+  box-shadow:0 2px 6px #ccc;
+  border-left:7px solid #e66b22;
+}
+.card h3{
+  margin:0 0 8px;
+  font-size:22px;
+}
+.card p{margin:6px 0}
+.total{
+  font-size:20px;
+  font-weight:bold;
+}
+.actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:12px;
+}
+
+.empty{
+  background:white;
+  padding:35px;
+  text-align:center;
+  border-radius:10px;
+  grid-column:1/-1;
+}
+
+.modal{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.55);
+  z-index:100;
+  overflow:auto;
+}
+.modal.show{display:block}
+.formbox{
+  width:min(700px,94%);
+  margin:30px auto;
+  background:white;
+  border-radius:14px;
+  padding:22px;
+}
+.formbox h2{margin-top:0}
+label{
+  display:block;
+  margin-top:14px;
+  font-weight:bold;
+}
+input,textarea,select{
+  width:100%;
+  padding:13px;
+  margin-top:5px;
+  border:1px solid #bbb;
+  border-radius:8px;
+  font-size:17px;
+}
+textarea{min-height:90px}
+.form-actions{
+  position:sticky;
+  bottom:0;
+  background:white;
+  padding-top:15px;
+  display:flex;
+  gap:10px;
+}
+
+@media(max-width:800px){
+  .summary{grid-template-columns:repeat(2,1fr)}
+  #orders{grid-template-columns:1fr}
+  header{align-items:flex-start;flex-direction:column}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div>
+    <h1>D'Cache Restaurant Orders</h1>
+    <div>Live Kitchen & Pickup Order Station</div>
+  </div>
+  <button class="orange" onclick="openForm()">+ New Order</button>
+</header>
+
+<div class="toolbar">
+  <button class="blue" onclick="enableSound()">🔊 Enable Sound</button>
+  <button class="gray" onclick="testOrder()">Create Test Order</button>
+</div>
+
+<div id="newAlert" class="alert">
+  <h2>🔔 NEW ORDER WAITING</h2>
+  <div id="alertText">A new order needs your attention.</div>
+</div>
+
+<div class="summary">
+  <div>Active Orders<strong id="activeCount">0</strong></div>
+  <div>Preparing<strong id="prepCount">0</strong></div>
+  <div>Ready for Pickup<strong id="readyCount">0</strong></div>
+  <div>Today's Sales<strong id="salesTotal">$0.00</strong></div>
+</div>
+
+<div class="tabs">
+  <button onclick="setFilter('All')" id="tabAll" class="active">All Orders</button>
+  <button onclick="setFilter('New')">New Orders</button>
+  <button onclick="setFilter('Accepted')">Accepted</button>
+  <button onclick="setFilter('Preparing')">Preparing</button>
+  <button onclick="setFilter('Ready')">Ready</button>
+  <button onclick="setFilter('Completed')">Completed</button>
+</div>
+
+<div id="orders"></div>
+
+<div id="modal" class="modal">
+  <div class="formbox">
+    <h2>Create Pickup Order</h2>
+
+    <label>Customer Name</label>
+    <input id="customer" placeholder="Customer name">
+
+    <label>Phone Number</label>
+    <input id="phone" placeholder="Phone number">
+
+    <label>Pickup Time</label>
+    <input id="pickup" type="time">
+
+    <label>Order Items & Quantities</label>
+    <textarea id="items" placeholder="Example: 2 Cubanos, 1 Yuca Fries"></textarea>
+
+    <label>Special Instructions</label>
+    <textarea id="notes" placeholder="Example: No pickles"></textarea>
+
+    <label>Total</label>
+    <input id="total" type="number" step="0.01" placeholder="0.00">
+
+    <label>Payment Status</label>
+    <select id="payment">
+      <option>Pay at Pickup</option>
+      <option>Unpaid</option>
+      <option>Paid by Card</option>
+      <option>Paid in Cash</option>
+    </select>
+
+    <div class="form-actions">
+      <button class="orange" onclick="saveOrder()">Send to Kitchen</button>
+      <button class="gray" onclick="closeForm()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let orders = JSON.parse(localStorage.getItem("dcacheOrders") || "[]");
+let filter = "All";
+let soundEnabled = false;
+let audioContext;
+
+function saveData(){
+  localStorage.setItem("dcacheOrders", JSON.stringify(orders));
+}
+
+function enableSound(){
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  soundEnabled = true;
+  beep();
+  alert("New order sound is enabled.");
+}
+
+function beep(){
+  if(!soundEnabled || !audioContext) return;
+  const osc = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  osc.connect(gain);
+  gain.connect(audioContext.destination);
+  osc.frequency.value = 850;
+  gain.gain.value = .25;
+  osc.start();
+  setTimeout(()=>osc.stop(),500);
+}
+
+function openForm(){
+  document.getElementById("modal").classList.add("show");
+}
+
+function closeForm(){
+  document.getElementById("modal").classList.remove("show");
+}
+
+function saveOrder(){
+  const customer=document.getElementById("customer").value.trim();
+  const items=document.getElementById("items").value.trim();
+
+  if(!customer || !items){
+    alert("Please enter the customer name and order items.");
+    return;
+  }
+
+  const order={
+    id:Date.now(),
+    number:orders.length+1,
+    customer,
+    phone:document.getElementById("phone").value,
+    pickup:document.getElementById("pickup").value,
+    items,
+    notes:document.getElementById("notes").value,
+    total:parseFloat(document.getElementById("total").value)||0,
+    payment:document.getElementById("payment").value,
+    status:"New",
+    created:new Date().toISOString()
+  };
+
+  orders.unshift(order);
+  saveData();
+  clearForm();
+  closeForm();
+  beep();
+  render();
+}
+
+function clearForm(){
+  ["customer","phone","pickup","items","notes","total"].forEach(id=>{
+    document.getElementById(id).value="";
+  });
+  document.getElementById("payment").value="Pay at Pickup";
+}
+
+function changeStatus(id,status){
+  const order=orders.find(o=>o.id===id);
+  if(order){
+    order.status=status;
+    saveData();
+    render();
+  }
+}
+
+function deleteOrder(id){
+  if(confirm("Delete this order?")){
+    orders=orders.filter(o=>o.id!==id);
+    saveData();
+    render();
+  }
+}
+
+function setFilter(value){
+  filter=value;
+  document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("active"));
+  event.target.classList.add("active");
+  render();
+}
+
+function testOrder(){
+  const order={
+    id:Date.now(),
+    number:orders.length+1,
+    customer:"Test Customer",
+    phone:"555-555-5555",
+    pickup:"12:30",
+    items:"1 Cubano Especial, 1 Maduros",
+    notes:"Test order",
+    total:18.50,
+    payment:"Pay at Pickup",
+    status:"New",
+    created:new Date().toISOString()
+  };
+  orders.unshift(order);
+  saveData();
+  beep();
+  render();
+}
+
+function render(){
+  const container=document.getElementById("orders");
+  container.innerHTML="";
+
+  const shown=filter==="All" ? orders : orders.filter(o=>o.status===filter);
+
+  if(shown.length===0){
+    container.innerHTML='<div class="empty">No orders in this section.</div>';
+  }
+
+  shown.forEach(o=>{
+    const card=document.createElement("div");
+    card.className="card";
+
+    let buttons="";
+
+    if(o.status==="New")
+      buttons+=`<button class="orange" onclick="changeStatus(${o.id},'Accepted')">Accept</button>`;
+
+    if(o.status==="Accepted")
+      buttons+=`<button class="blue" onclick="changeStatus(${o.id},'Preparing')">Start Preparing</button>`;
+
+    if(o.status==="Preparing")
+      buttons+=`<button class="green" onclick="changeStatus(${o.id},'Ready')">Ready for Pickup</button>`;
+
+    if(o.status==="Ready")
+      buttons+=`<button class="green" onclick="changeStatus(${o.id},'Completed')">Complete Order</button>`;
+
+    buttons+=`<button class="red" onclick="deleteOrder(${o.id})">Delete</button>`;
+
+    card.innerHTML=`
+      <h3>Order #${o.number} — ${o.customer}</h3>
+      <p><strong>Status:</strong> ${o.status}</p>
+      <p><strong>Phone:</strong> ${o.phone || "-"}</p>
+      <p><strong>Pickup:</strong> ${o.pickup || "-"}</p>
+      <p><strong>Items:</strong><br>${o.items}</p>
+      <p><strong>Special Instructions:</strong><br>${o.notes || "None"}</p>
+      <p><strong>Payment:</strong> ${o.payment}</p>
+      <p class="total">Total: $${o.total.toFixed(2)}</p>
+      <div class="actions">${buttons}</div>
+    `;
+
+    container.appendChild(card);
+  });
+
+  const newOrders=orders.filter(o=>o.status==="New");
+
+  const alertBox=document.getElementById("newAlert");
+  if(newOrders.length){
+    alertBox.classList.add("show");
+    document.getElementById("alertText").innerText=
+      newOrders.length+" order(s) need to be accepted.";
+  }else{
+    alertBox.classList.remove("show");
+  }
+
+  document.getElementById("activeCount").innerText=
+    orders.filter(o=>o.status!=="Completed").length;
+
+  document.getElementById("prepCount").innerText=
+    orders.filter(o=>o.status==="Preparing").length;
+
+  document.getElementById("readyCount").innerText=
+    orders.filter(o=>o.status==="Ready").length;
+
+  const sales=orders.reduce((sum,o)=>sum+o.total,0);
+  document.getElementById("salesTotal").innerText="$"+sales.toFixed(2);
+}
+
+render();
+</script>
+
+</body>
+</html>
